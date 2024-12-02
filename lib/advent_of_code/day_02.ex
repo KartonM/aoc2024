@@ -1,33 +1,17 @@
 defmodule AdventOfCode.Day02 do
-  def are_safe([head | tail]) do
-    direction = if head > hd(tail), do: :down, else: :up
-    are_safe(tail, head, direction)
+  def are_safe(levels) do
+    diffs = Enum.chunk_every(levels, 2, 1, :discard) |> Enum.map(fn [a, b] -> b - a end)
+    Enum.any?([1..3, -3..-1], fn range -> Enum.all?(diffs, fn diff -> diff in range end) end)
   end
 
-  def are_safe([head | _tail], prev, _) when abs(head - prev) > 3, do: false
-
-  def are_safe([head | tail], prev, direction) do
-    case {prev, head, direction} do
-      {x, y, _} when x == y -> false
-      {x, y, :up} when x > y -> false
-      {x, y, :down} when x < y -> false
-      _ -> are_safe(tail, head, direction)
-    end
+  def drop_at(list, index) do
+    {left, [_ | right]} = Enum.split(list, index)
+    left ++ right
   end
-
-  def are_safe([], _, _), do: true
 
   def are_safe_with_single_mistake(levels) do
-    are_safe(levels) || are_safe_with_single_mistake([hd(levels)], tl(levels))
-  end
-
-  def are_safe_with_single_mistake(prev, []) do
-    are_safe(Enum.drop(prev, -1))
-  end
-
-  def are_safe_with_single_mistake(prev, remaining) do
-    are_safe(Enum.drop(prev, -1) ++ remaining) ||
-      are_safe_with_single_mistake(prev ++ [hd(remaining)], tl(remaining))
+    are_safe(levels) ||
+      Enum.any?(0..(length(levels) - 1), fn index -> are_safe(drop_at(levels, index)) end)
   end
 
   def parse_levels(input) do
