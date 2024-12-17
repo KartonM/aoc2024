@@ -13,9 +13,7 @@ defmodule AdventOfCode.Day16 do
 
     starting_pos = grid |> Enum.find(fn {{_, _}, char} -> char == "S" end) |> elem(0)
     end_pos = grid |> Enum.find(fn {{_, _}, char} -> char == "E" end) |> elem(0)
-    w = grid |> Enum.map(fn {{x, _}, _} -> x end) |> Enum.max()
-    h = grid |> Enum.map(fn {{_, y}, _} -> y end) |> Enum.max()
-    {grid, starting_pos, end_pos, w, h}
+    {grid, starting_pos, end_pos}
   end
 
   def rotate_clockwise({dx, dy}) do
@@ -26,48 +24,103 @@ defmodule AdventOfCode.Day16 do
     {-dy, dx}
   end
 
-  def cheapest_path_dijkstra(grid, {e_x, e_y}, queue, dist) do
-    u =
-      queue |> Enum.filter(fn v -> Map.has_key?(dist, v) end) |> Enum.min_by(fn v -> dist[v] end)
-
-    if elem(u, 0) == {e_x, e_y} do
-      dist[u]
+  def cheapest_path_dijkstra(
+        grid,
+        {e_x, e_y},
+        queue,
+        dist,
+        cheapest_paths \\ [],
+        lowest_cost \\ nil
+      ) do
+    if Enum.empty?(queue) do
+      {cheapest_paths, lowest_cost}
     else
-      queue = Enum.reject(queue, fn v -> v == u end)
+      {[u | rest], cost} = queue |> Enum.min_by(fn {_, cost} -> cost end)
+      queue = Enum.reject(queue, fn v -> v == {[u | rest], cost} end)
       {{x, y}, {dx, dy}} = u
 
-      dist =
-        [
-          {{{x + dx, y + dy}, {dx, dy}}, 1},
-          {{{x, y}, rotate_clockwise({dx, dy})}, 1000},
-          {{{x, y}, rotate_counter_clockwise({dx, dy})}, 1000}
-        ]
-        |> Enum.filter(fn {{{x, y}, dir}, _} ->
-          Map.get(grid, {x, y}) != "#" && Enum.member?(queue, {{x, y}, dir})
-        end)
-        |> Enum.reduce(dist, fn {v, cost}, acc ->
-          alt = dist[u] + cost
-          if !Map.has_key?(acc, v) || alt < acc[v], do: Map.put(acc, v, alt), else: acc
-        end)
+      cond do
+        lowest_cost != nil && cost > lowest_cost ->
+          {cheapest_paths, lowest_cost}
 
-      cheapest_path_dijkstra(grid, {e_x, e_y}, queue, dist)
-    end
-  end
+        {x, y} == {e_x, e_y} ->
+          if lowest_cost == nil || cost < lowest_cost do
+            cheapest_path_dijkstra(grid, {e_x, e_y}, queue, dist, [[u | rest]], cost)
+          else
+            cheapest_path_dijkstra(
+              grid,
+              {e_x, e_y},
+              queue,
+              dist,
+              [[u | rest] | cheapest_paths],
+              lowest_cost
+            )
+          end
 
-  def generate_all_vertices(grid, w, h) do
-    for x <- 0..w, y <- 0..h, dir <- [{1, 0}, {0, 1}, {-1, 0}, {0, -1}], grid[{x, y}] != "#" do
-      {{x, y}, dir}
+        true ->
+          {dist, queue} =
+            [
+              {{{x + dx, y + dy}, {dx, dy}}, 1},
+              {{{x, y}, rotate_clockwise({dx, dy})}, 1000},
+              {{{x, y}, rotate_counter_clockwise({dx, dy})}, 1000}
+            ]
+            |> Enum.filter(fn {{{x, y}, dir}, _} ->
+              Map.get(grid, {x, y}) != "#" && !Enum.member?(rest, {{x, y}, dir})
+            end)
+            |> Enum.reduce({dist, queue}, fn {v, v_cost}, {dist, queue} ->
+              alt = cost + v_cost
+
+              if !Map.has_key?(dist, v) || alt <= dist[v] do
+                {Map.put(dist, v, alt), [{[v | [u | rest]], alt} | queue]}
+              else
+                {dist, queue}
+              end
+            end)
+
+          cheapest_path_dijkstra(
+            grid,
+            {e_x, e_y},
+            queue,
+            dist,
+            cheapest_paths,
+            lowest_cost
+          )
+      end
     end
   end
 
   def part1(input) do
-    {grid, starting_pos, end_pos, w, h} = parse_input(input)
+    {grid, starting_pos, end_pos} = parse_input(input)
+    starting_vertex = {starting_pos, {1, 0}}
 
-    cheapest_path_dijkstra(grid, end_pos, generate_all_vertices(grid, w, h), %{
-      {starting_pos, {1, 0}} => 0
-    })
+    cheapest_path_dijkstra(
+      grid,
+      end_pos,
+      [{[starting_vertex], 0}],
+      %{
+        starting_vertex => 0
+      },
+      MapSet.new([starting_vertex])
+    )
+    |> elem(1)
   end
 
-  def part2(_args) do
+  def part2(input) do
+    {grid, starting_pos, end_pos} = parse_input(input)
+    starting_vertex = {starting_pos, {1, 0}}
+
+    cheapest_path_dijkstra(
+      grid,
+      end_pos,
+      [{[starting_vertex], 0}],
+      %{
+        starting_vertex => 0
+      },
+      MapSet.new([starting_vertex])
+    )
+    |> elem(0)
+    |> Enum.flat_map(fn path -> Enum.map(path, fn {pos, _} -> pos end) end)
+    |> Enum.uniq()
+    |> Enum.count()
   end
 end
