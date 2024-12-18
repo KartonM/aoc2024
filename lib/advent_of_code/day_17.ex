@@ -47,13 +47,11 @@ defmodule AdventOfCode.Day17 do
   end
 
   def execute(program, registers, pointer \\ 0, output \\ []) do
-    IO.inspect({pointer, registers, output})
     operand = Map.get(program, pointer + 1)
 
     case Map.get(program, pointer) do
       nil ->
-        IO.inspect(registers)
-        Enum.join(output, ",")
+        {output, registers}
 
       0 ->
         registers = dv(registers, :A, operand)
@@ -97,9 +95,36 @@ defmodule AdventOfCode.Day17 do
 
   def part1(input) do
     {registers, program} = parse_input(input)
-    execute(program, registers)
+    execute(program, registers) |> elem(0) |> Enum.join(",")
   end
 
-  def part2(_args) do
+  def triplets(arr) do
+    Enum.reduce(arr, 0, fn x, acc -> acc * 8 + x end)
+  end
+
+  def find_input(program, solution, current \\ nil) do
+    if current == nil do
+      0..7 |> Enum.find_value(fn a -> find_input(program, solution, [a]) end)
+    else
+      res = execute(program, %{A: triplets(current), B: 0, C: 0}) |> elem(0)
+
+      cond do
+        res == solution ->
+          current
+
+        res == Enum.take(solution, -1 * length(res)) ->
+          0..7 |> Enum.find_value(fn a -> find_input(program, solution, current ++ [a]) end)
+
+        true ->
+          nil
+      end
+    end
+  end
+
+  def part2(input) do
+    {_, program} = parse_input(input)
+
+    solution = program |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1))
+    find_input(program, solution) |> triplets()
   end
 end
